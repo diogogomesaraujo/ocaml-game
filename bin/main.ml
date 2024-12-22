@@ -34,21 +34,28 @@ let p_move p =
 
   { body = p_move_x |> p_move_y; color = p.color }
 
+let lerp a b f = (a *. (1.0 -. f)) +. (b *. f)
+
+let e_move e p = {
+      body = Rectangle.create (lerp (Rectangle.x e.body) (Rectangle.x p.body) 0.05) (lerp (Rectangle.y e.body) (Rectangle.y p.body) 0.05) (Rectangle.width e.body) (Rectangle.height e.body);
+      color = e.color;
+    }
+
 let setup () =
   init_window 800 600 "game";
   set_target_fps 60
 
-let rec loop p () =
+let rec loop p e () =
   if window_should_close () then close_window ()
   else begin
-  let p = if check_collision_recs (p_move p).body e.body == false then p_move p else p in
+  let e = if check_collision_recs (p_move p).body e.body == false then e_move e p else exit 0 in
+  let p = if check_collision_recs (p_move p).body e.body == false then p_move p else exit 0 in
   begin_drawing ();
   clear_background Color.skyblue; (*draw background*)
   draw_rectangle_rec e.body e.color; (*enemy player*)
   draw_rectangle_rec p.body p.color; (*player player*)
-  draw_text "Fuck yeah we doing an OCaml Game!" 400 300 20 Color.black;
   end_drawing ();
-  loop p ()
+  loop p e ()
 end
 
-let () = setup () |> loop p
+let () = setup () |> loop p e
