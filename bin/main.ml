@@ -10,8 +10,6 @@ let p = {
   color = Color.black;
 }
 
-(*let es n = *)
-
 let e = {
   body = Rectangle.create 400.0 200.0 20.0 20.0;
   color = Color.red;
@@ -56,6 +54,13 @@ let rec loop p e () =
   else begin
   let e = if check_collision_recs (p_move p).body e.body == false then e_move e p else exit 0 in
   let p = if check_collision_recs (p_move p).body e.body == false then p_move p else exit 0 in
+
+  let distance = (abs_float ((Rectangle.x p.body) -. (Rectangle.x e.body))) ** 2.0 +. (abs_float ((Rectangle.y p.body) -. (Rectangle.y e.body))) ** 2.0 in
+  let p = if sqrt distance < 100.0
+    then { body = p.body; color = Color.magenta; }
+    else { body = p.body; color = Color.black; }
+  in
+
   begin_drawing ();
   clear_background Color.skyblue; (*draw background*)
   draw_rectangle_rec e.body e.color; (*enemy player*)
