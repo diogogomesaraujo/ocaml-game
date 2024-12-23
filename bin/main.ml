@@ -10,6 +10,8 @@ let p = {
   color = Color.black;
 }
 
+(*let es n = *)
+
 let e = {
   body = Rectangle.create 400.0 200.0 20.0 20.0;
   color = Color.red;
@@ -34,12 +36,16 @@ let p_move p =
 
   { body = p_move_x |> p_move_y; color = p.color }
 
-let lerp a b f = (a *. (1.0 -. f)) +. (b *. f)
+let lerp a b s =
+  let distance = abs_float (a -. b) in
+  if distance < s then b
+  else if a < b then a +. s
+  else a -. s
 
 let e_move e p = {
-      body = Rectangle.create (lerp (Rectangle.x e.body) (Rectangle.x p.body) 0.05) (lerp (Rectangle.y e.body) (Rectangle.y p.body) 0.05) (Rectangle.width e.body) (Rectangle.height e.body);
-      color = e.color;
-    }
+    body = Rectangle.create (lerp (Rectangle.x e.body) (Rectangle.x p.body) 3.0) (lerp (Rectangle.y e.body) (Rectangle.y p.body) 3.0) (Rectangle.width e.body) (Rectangle.height e.body);
+    color = e.color;
+  }
 
 let setup () =
   init_window 800 600 "game";
