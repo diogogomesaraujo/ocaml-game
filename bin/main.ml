@@ -1,11 +1,18 @@
 open Raylib
 
+type bullet = {
+  body : Rectangle.t;
+  color : Color.t;
+  direction : Vector2.t;
+  (*lifespan : int;*)
+}
+
 type player = {
   body : Rectangle.t;
   color : Color.t;
 }
 
-let p = {
+let player = {
   body = Rectangle.create 200.0 300.0 20.0 20.0;
   color = Color.black;
 }
@@ -16,24 +23,33 @@ let create_enemies max_x max_y n =
     let y = Random.float max_y in
     {body = (Rectangle.create x y 20.0 20.0); color = Color.red})
 
-let p_move p =
-  let p_move_x =
+let create_bullet (bullets : bullet list) target player =
+  let magnitude dx dy = (sqrt (dx *. dx +. dy *. dy)) in
+  let normalize dx dy = Vector2.create (dx /. magnitude dx dy) (dy /. magnitude dx dy) in
+  {
+    body = Rectangle.create (Rectangle.x player.body) (Rectangle.y player.body) 5.0 5.0;
+    color = Color.white;
+    direction = normalize (Vector2.x target -. Rectangle.x player.body) (Vector2.y target -. Rectangle.y player.body);
+  } :: bullets
+
+let player_move player =
+  let player_move_x =
     if is_key_down Key.A || is_key_down Key.Left then
-      Rectangle.create ((Rectangle.x p.body) -. 5.0) (Rectangle.y p.body) (Rectangle.width p.body) (Rectangle.height p.body)
+      Rectangle.create ((Rectangle.x player.body) -. 5.0) (Rectangle.y player.body) (Rectangle.width player.body) (Rectangle.height player.body)
     else if is_key_down Key.D || is_key_down Key.Right then
-      Rectangle.create ((Rectangle.x p.body) +. 5.0) (Rectangle.y p.body) (Rectangle.width p.body) (Rectangle.height p.body)
-    else p.body
+      Rectangle.create ((Rectangle.x player.body) +. 5.0) (Rectangle.y player.body) (Rectangle.width player.body) (Rectangle.height player.body)
+    else player.body
   in
 
-  let p_move_y px =
+  let player_move_y px =
     if is_key_down Key.W || is_key_down Key.Up then
-      Rectangle.create (Rectangle.x px) ((Rectangle.y px) -. 5.0) (Rectangle.width p.body) (Rectangle.height p.body)
+      Rectangle.create (Rectangle.x px) ((Rectangle.y px) -. 5.0) (Rectangle.width player.body) (Rectangle.height player.body)
     else if is_key_down Key.S || is_key_down Key.Down then
-      Rectangle.create (Rectangle.x px) ((Rectangle.y px) +. 5.0) (Rectangle.width p.body) (Rectangle.height p.body)
+      Rectangle.create (Rectangle.x px) ((Rectangle.y px) +. 5.0) (Rectangle.width player.body) (Rectangle.height player.body)
     else px
   in
 
-  { body = p_move_x |> p_move_y; color = p.color }
+  { body = player_move_x |> player_move_y; color = player.color }
 
 let lerp a b s =
   let distance = abs_float (a -. b) in
@@ -41,47 +57,67 @@ let lerp a b s =
   else if a < b then a +. s
   else a -. s
 
-let e_move e p = {
-    body = Rectangle.create (lerp (Rectangle.x e.body) (Rectangle.x p.body) 1.0) (lerp (Rectangle.y e.body) (Rectangle.y p.body) 1.0) (Rectangle.width e.body) (Rectangle.height e.body);
-    color = e.color;
+let bullet_move (bullet : bullet) : bullet = {
+  body = Rectangle.create (Rectangle.x bullet.body +. (Vector2.x bullet.direction *. 10.0)) (Rectangle.y bullet.body +. (Vector2.y bullet.direction *. 10.0)) 5.0 5.0;
+  color = Color.white;
+  direction = bullet.direction;
+}
+
+let enemy_move enemy player = {
+    body = Rectangle.create (lerp (Rectangle.x enemy.body) (Rectangle.x player.body) 1.0) (lerp (Rectangle.y enemy.body) (Rectangle.y player.body) 1.0) (Rectangle.width enemy.body) (Rectangle.height enemy.body);
+    color = enemy.color;
   }
 
 let setup () =
   init_window 800 600 "game";
   set_target_fps 60
-let e = create_enemies 800.0 600.0 5
+let enemies = create_enemies 800.0 600.0 5
+let (bullets : bullet list) = []
 
-let rec loop p e () =
+let rec loop player enemies (bullets : bullet list) () =
   if window_should_close () then close_window ()
   else begin
-    let e = List.map (
-      fun e -> if check_collision_recs (p_move p).body e.body then exit 0 else e_move e p
-    ) e in
+    if List.length enemies == 0 then exit 0;
 
-    let p =
-      let p = p_move p in
+    let enemies = List.map (
+      fun enemy -> if check_collision_recs (player_move player).body enemy.body then exit 0 else enemy_move enemy player
+    ) enemies in
+
+    let enemies = List.filter (
+      fun enemy -> not (List.exists (
+        fun (bullet: bullet) -> check_collision_recs enemy.body bullet.body
+      ) bullets)
+    ) enemies in
+
+    let player =
+      let player = player_move player in
       if List.exists (
-      fun e -> check_collision_recs (p_move p).body e.body
-    ) e then exit 0 else p
+      fun enemy -> check_collision_recs (player_move player).body enemy.body
+    ) enemies then exit 0 else player
     in
 
   let distance = List.fold_left (
-    fun acc ei ->
-    let d = (abs_float ((Rectangle.x p.body) -. (Rectangle.x ei.body))) ** 2.0 +. (abs_float ((Rectangle.y p.body) -. (Rectangle.y ei.body))) ** 2.0 in
+    fun acc enemy ->
+    let d = (abs_float ((Rectangle.x player.body) -. (Rectangle.x enemy.body))) ** 2.0 +. (abs_float ((Rectangle.y player.body) -. (Rectangle.y enemy.body))) ** 2.0 in
     if d < acc then d else acc
-  ) max_float e in
+  ) max_float enemies in
 
-  let p = if sqrt distance < 100.0
-    then { body = p.body; color = Color.magenta; }
-    else { body = p.body; color = Color.black; }
+  let bullets = if is_key_pressed Key.Space then create_bullet bullets (Vector2.create (get_mouse_x () |> float_of_int) (get_mouse_y () |> float_of_int)) player else bullets in
+
+  let bullets = List.map (fun bullet -> bullet_move bullet) bullets in
+
+  let player = if sqrt distance < 100.0
+    then { body = player.body; color = Color.magenta; }
+    else { body = player.body; color = Color.black; }
   in
 
   begin_drawing ();
   clear_background Color.skyblue; (*draw background*)
-  List.iter (fun e -> draw_rectangle_rec e.body e.color) e;
-  draw_rectangle_rec p.body p.color; (*player player*)
+  List.iter (fun enemy -> draw_rectangle_rec enemy.body enemy.color) enemies;
+  draw_rectangle_rec player.body player.color; (*player player*)
+  List.iter (fun (bullet : bullet) -> draw_rectangle_rec bullet.body bullet.color) bullets;
   end_drawing ();
-  loop p e ()
+  loop player enemies bullets ()
 end
 
-let () = setup () |> loop p e
+let () = setup () |> loop player enemies bullets
