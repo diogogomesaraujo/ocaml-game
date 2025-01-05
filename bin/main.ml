@@ -10,10 +10,11 @@ let p = {
   color = Color.black;
 }
 
-let e = {
-  body = Rectangle.create 400.0 200.0 20.0 20.0;
-  color = Color.red;
-}
+let create_enemies max_x max_y n =
+  List.init n (fun _ ->
+    let x = Random.float max_x in
+    let y = Random.float max_y in
+    {body = (Rectangle.create x y 20.0 20.0); color = Color.red})
 
 let p_move p =
   let p_move_x =
@@ -41,21 +42,35 @@ let lerp a b s =
   else a -. s
 
 let e_move e p = {
-    body = Rectangle.create (lerp (Rectangle.x e.body) (Rectangle.x p.body) 3.0) (lerp (Rectangle.y e.body) (Rectangle.y p.body) 3.0) (Rectangle.width e.body) (Rectangle.height e.body);
+    body = Rectangle.create (lerp (Rectangle.x e.body) (Rectangle.x p.body) 1.0) (lerp (Rectangle.y e.body) (Rectangle.y p.body) 1.0) (Rectangle.width e.body) (Rectangle.height e.body);
     color = e.color;
   }
 
 let setup () =
   init_window 800 600 "game";
   set_target_fps 60
+let e = create_enemies 800.0 600.0 5
 
 let rec loop p e () =
   if window_should_close () then close_window ()
   else begin
-  let e = if check_collision_recs (p_move p).body e.body == false then e_move e p else exit 0 in
-  let p = if check_collision_recs (p_move p).body e.body == false then p_move p else exit 0 in
+    let e = List.map (
+      fun e -> if check_collision_recs (p_move p).body e.body then exit 0 else e_move e p
+    ) e in
 
-  let distance = (abs_float ((Rectangle.x p.body) -. (Rectangle.x e.body))) ** 2.0 +. (abs_float ((Rectangle.y p.body) -. (Rectangle.y e.body))) ** 2.0 in
+    let p =
+      let p = p_move p in
+      if List.exists (
+      fun e -> check_collision_recs (p_move p).body e.body
+    ) e then exit 0 else p
+    in
+
+  let distance = List.fold_left (
+    fun acc ei ->
+    let d = (abs_float ((Rectangle.x p.body) -. (Rectangle.x ei.body))) ** 2.0 +. (abs_float ((Rectangle.y p.body) -. (Rectangle.y ei.body))) ** 2.0 in
+    if d < acc then d else acc
+  ) max_float e in
+
   let p = if sqrt distance < 100.0
     then { body = p.body; color = Color.magenta; }
     else { body = p.body; color = Color.black; }
@@ -63,7 +78,7 @@ let rec loop p e () =
 
   begin_drawing ();
   clear_background Color.skyblue; (*draw background*)
-  draw_rectangle_rec e.body e.color; (*enemy player*)
+  List.iter (fun e -> draw_rectangle_rec e.body e.color) e;
   draw_rectangle_rec p.body p.color; (*player player*)
   end_drawing ();
   loop p e ()
