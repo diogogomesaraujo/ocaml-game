@@ -71,7 +71,7 @@ let enemy_move enemy player = {
 let setup () =
   init_window 800 600 "game";
   set_target_fps 60
-let enemies = create_enemies 800.0 600.0 5
+let enemies = create_enemies 800.0 600.0 3
 let (bullets : bullet list) = []
 
 let rec loop player enemies (bullets : bullet list) () =
@@ -83,11 +83,25 @@ let rec loop player enemies (bullets : bullet list) () =
       fun enemy -> if check_collision_recs (player_move player).body enemy.body then exit 0 else enemy_move enemy player
     ) enemies in
 
+    let new_bullets = ref bullets in (*think of a way without mutability*)
+
     let enemies = List.filter (
-      fun enemy -> not (List.exists (
+      fun enemy ->
+      new_bullets := List.filter (
+        fun (bullet : bullet) ->
+        not (
+          List.exists (
+          fun enemy -> check_collision_recs enemy.body bullet.body
+        )
+        enemies
+        )
+      ) bullets;
+      not (List.exists (
         fun (bullet: bullet) -> check_collision_recs enemy.body bullet.body
       ) bullets)
     ) enemies in
+
+    let (bullets: bullet list) = !new_bullets in
 
     let player =
       let player = player_move player in
