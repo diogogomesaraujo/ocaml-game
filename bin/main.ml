@@ -36,24 +36,26 @@ let player = {
   count = 0;
 }
 
-let create_enemies max_x max_y n =
+let create_enemies max_x max_y min_x min_y n =
+  let random_float min max = min +. Random.float (max -. min) in
   List.init n (fun _ ->
-    let x = Random.float max_x in
-    let y = Random.float max_y in
+    let x = random_float min_x max_x in
+    let y = random_float min_y max_y in
     {body = (Rectangle.create x y (sprite_size /. 2.) (sprite_size *. 0.6)); color = Color.red; count = 0;})
 
 let create_bullet (bullets : bullet list) target player =
   let magnitude dx dy = (sqrt (dx *. dx +. dy *. dy)) in
   let normalize dx dy = Vector2.create (dx /. magnitude dx dy) (dy /. magnitude dx dy) in
   {
-    body = Rectangle.create (Rectangle.x player.body) (Rectangle.y player.body) 5.0 5.0;
-    color = Color.white;
+    body = Rectangle.create (Rectangle.x player.body) (Rectangle.y player.body) 2. 2.;
+    color = Color.create 40 40 40 255;
     direction = normalize (Vector2.x target -. Rectangle.x player.body) (Vector2.y target -. Rectangle.y player.body);
   } :: bullets
 
-let player_move player s =
-  let facing_x = ref Right in
-  let facing_y = ref Front in
+let player_move player s facing_x facing_y =
+  let facing_x = ref facing_x in
+  let facing_y = ref facing_y in
+
   let player_move_x =
     if is_key_down Key.A || is_key_down Key.Left then
     begin
@@ -100,8 +102,8 @@ let lerp a b s =
   else a -. s
 
 let bullet_move (bullet : bullet) : bullet = {
-  body = Rectangle.create (Rectangle.x bullet.body +. (Vector2.x bullet.direction *. 10.0)) (Rectangle.y bullet.body +. (Vector2.y bullet.direction *. 10.0)) 5.0 5.0;
-  color = Color.white;
+  body = Rectangle.create (Rectangle.x bullet.body +. (Vector2.x bullet.direction *. 10.0)) (Rectangle.y bullet.body +. (Vector2.y bullet.direction *. 10.0)) 2.0 2.0;
+  color = bullet.color;
   direction = bullet.direction;
 }
 
@@ -145,25 +147,33 @@ let setup =
   init_window (Vector2.x screen_size |> int_of_float)  (Vector2.y screen_size |> int_of_float)  "game";
   set_target_fps 60;
   Random.self_init ();
+  disable_cursor ();
   let player_texture_front_right = load_texture "public/persona-front-right.png" in
   let player_texture_front_left = load_texture "public/persona-front-left.png" in
   let player_texture_back_right = load_texture "public/persona-back-right.png" in
   let player_texture_back_left = load_texture "public/persona-back-left.png" in
-  (player_texture_front_right, player_texture_front_left, player_texture_back_right, player_texture_back_left)
+  let cursor_texture = load_texture "public/shoot_cursor.png" in
+  (player_texture_front_right, player_texture_front_left, player_texture_back_right, player_texture_back_left, cursor_texture)
 
-let enemies = create_enemies (Vector2.x screen_size) (Vector2.y screen_size) 2
+let enemies = create_enemies (Vector2.x screen_size) (Vector2.y screen_size) (Vector2.x screen_size /. 2. -. 5.) (Vector2.y screen_size /. 2. -. 5.) 15
 
 let (bullets : bullet list) = []
 
-let rec loop player enemies (bullets : bullet list) player_speed player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left  () =
+let rec loop player enemies (bullets : bullet list) player_speed player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left cursor_texture is_shooting facing_x facing_y () =
   if window_should_close () then close_window ()
   else begin
     if List.length enemies == 0 then exit 0;
     let cam = cam_update player in
 
-    let (player_move, facing_x, facing_y, player_is_moving) = player_move player player_speed in
+    let (player_move, facing_x, facing_y, player_is_moving) = player_move player player_speed facing_x facing_y in
 
-    let player_state = if player_is_moving then Move else Idle in
+    let (player_move, is_shooting) = if is_shooting && player.count <= 8 * 4 then ({body = player.body; color = player.color; count = player.count + 1;}, true) else ({body = player_move.body; color = player_move.color; count = player_move.count}, false) in
+
+    let player_state = match (player_is_moving, is_shooting) with
+      | (true, false) -> Move
+      | (false, false)-> Idle
+      | (_, true) -> Shoot
+    in
 
     let player_speed =
       match player_is_moving with
@@ -178,25 +188,25 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
       if check_collision_recs player_move.body enemy.body then exit 0 else enemy_move
     ) enemies in
 
-    let new_bullets = ref bullets in (*think of a way without mutability*)
+    let new_enemies = ref enemies in (*think of a way without mutability*)
 
-    let enemies = List.filter (
-      fun enemy ->
-      new_bullets := List.filter (
-        fun (bullet : bullet) ->
+    let bullets = List.filter (
+      fun (bullet : bullet) ->
+      new_enemies := List.filter (
+        fun enemy ->
         not (
           List.exists (
-          fun enemy -> check_collision_recs enemy.body bullet.body
+          fun (bullet: bullet) -> check_collision_recs enemy.body bullet.body
         )
-        enemies
+        bullets
         )
-      ) bullets;
+      ) enemies;
       not (List.exists (
-        fun (bullet: bullet) -> check_collision_recs enemy.body bullet.body
-      ) bullets)
-    ) enemies in
+        fun enemy -> check_collision_recs enemy.body bullet.body
+      ) enemies)
+    ) bullets in
 
-    let (bullets: bullet list) = !new_bullets in
+    let (enemies: player list) = !new_enemies in
 
     let player =
       let player = player_move in
@@ -213,7 +223,7 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
 
   let mouse_pos = mouse_pos cam in
 
-  let bullets = if is_key_pressed Key.Space then create_bullet bullets mouse_pos player else bullets in
+  let (bullets, player, is_shooting) = if is_key_pressed Key.Space then (create_bullet bullets mouse_pos player, {body = player.body; color = player.color; count = 0}, true) else (bullets, player, is_shooting) in
 
   let bullets = List.map (fun bullet -> bullet_move bullet) bullets in
 
@@ -262,10 +272,11 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
     ) enemy;
   ) enemies;
   List.iter (fun (bullet : bullet) -> draw_rectangle_rec bullet.body bullet.color) bullets;
+  draw_texture_rec cursor_texture (Rectangle.create 0. 0. 8. 8.) (mouse_pos) Color.white;
   end_drawing ();
-  loop player enemies bullets player_speed player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left ()
+  loop player enemies bullets player_speed player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left cursor_texture is_shooting facing_x facing_y ()
 end
 
 let () =
-  let (player_texture_front_right, player_texture_front_left, player_texture_back_right, player_texture_back_left) = setup in
-  loop player enemies bullets 0.0 player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left ()
+  let (player_texture_front_right, player_texture_front_left, player_texture_back_right, player_texture_back_left, cursor_texture) = setup in
+  loop player enemies bullets 0.0 player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left cursor_texture false Right Front ()
