@@ -224,10 +224,15 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
 
   begin_drawing ();
   begin_mode_2d cam;
-  clear_background Color.skyblue; (*draw background*)
+  clear_background (Color.create 229 227 212 255); (*draw background*)
+  let enemies = List.sort (
+    fun enemy1 enemy2 -> compare (Rectangle.y enemy1.body) (Rectangle.y enemy2.body)
+  ) enemies in
   List.iter (fun enemy ->
+    let distance_y = (Rectangle.y enemy.body) -. (Rectangle.y player.body) in
+
+    if distance_y < 0. then
     let (_, enemy_state, facing_x, facing_y) = enemy_move enemy player in
-    draw_rectangle_rec enemy.body enemy.color;
     draw_player enemy_state (
       match (facing_x, facing_y) with
       | (Right, Front) -> player_texture_front_right
@@ -236,7 +241,6 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
       | (Left, Back) -> player_texture_back_left
     ) enemy;
   ) enemies;
-  draw_rectangle_rec player.body player.color;
   draw_player player_state (
     match (facing_x, facing_y) with
     | (Right, Front) -> player_texture_front_right
@@ -244,6 +248,19 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
     | (Left, Front) -> player_texture_front_left
     | (Left, Back) -> player_texture_back_left
   ) player; (*player player*)
+  List.iter (fun enemy ->
+    let distance_y = (Rectangle.y enemy.body) -. (Rectangle.y player.body) in
+
+    if distance_y >= 0. then
+    let (_, enemy_state, facing_x, facing_y) = enemy_move enemy player in
+    draw_player enemy_state (
+      match (facing_x, facing_y) with
+      | (Right, Front) -> player_texture_front_right
+      | (Right, Back) -> player_texture_back_right
+      | (Left, Front) -> player_texture_front_left
+      | (Left, Back) -> player_texture_back_left
+    ) enemy;
+  ) enemies;
   List.iter (fun (bullet : bullet) -> draw_rectangle_rec bullet.body bullet.color) bullets;
   end_drawing ();
   loop player enemies bullets player_speed player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left ()
