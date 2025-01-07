@@ -31,7 +31,7 @@ type player = {
 }
 
 let player = {
-  body = Rectangle.create (Vector2.x screen_size /. 2.) (Vector2.y screen_size /. 2.)  (sprite_size /. 2.) sprite_size;
+  body = Rectangle.create (Vector2.x screen_size /. 2.) (Vector2.y screen_size /. 2.)  (sprite_size /. 2.) (sprite_size *. 0.6);
   color = Color.black;
   count = 0;
 }
@@ -40,7 +40,7 @@ let create_enemies max_x max_y n =
   List.init n (fun _ ->
     let x = Random.float max_x in
     let y = Random.float max_y in
-    {body = (Rectangle.create x y sprite_size sprite_size); color = Color.red; count = 0;})
+    {body = (Rectangle.create x y (sprite_size /. 2.) (sprite_size *. 0.6)); color = Color.red; count = 0;})
 
 let create_bullet (bullets : bullet list) target player =
   let magnitude dx dy = (sqrt (dx *. dx +. dy *. dy)) in
@@ -105,11 +105,19 @@ let bullet_move (bullet : bullet) : bullet = {
   direction = bullet.direction;
 }
 
-let enemy_move enemy player = {
-    body = Rectangle.create (lerp (Rectangle.x enemy.body) (Rectangle.x player.body) 1.) (lerp (Rectangle.y enemy.body) (Rectangle.y player.body) 1.) (Rectangle.width enemy.body) (Rectangle.height enemy.body);
+let enemy_move enemy player =
+  let x = (lerp (Rectangle.x enemy.body) (Rectangle.x player.body) 1.) in
+  let y = (lerp (Rectangle.y enemy.body) (Rectangle.y player.body) 1.) in
+  (
+  {
+    body = Rectangle.create x y (Rectangle.width enemy.body) (Rectangle.height enemy.body);
     color = enemy.color;
-    count = 0;
-  }
+    count =   begin if x == Rectangle.x enemy.body || y == Rectangle.y enemy.body || enemy.count <= 3 * 8 then enemy.count + 1 else 0 end;
+  },
+  begin if x == Rectangle.x enemy.body || y == Rectangle.y enemy.body then Idle else Move end,
+  begin if (Rectangle.x enemy.body) -. x > 0. then Left else Right end,
+  begin if (Rectangle.y enemy.body) -. y > 0. then Front else Back end
+  )
 
 let cam_update player =
   Camera2D.create (Vector2.create (Vector2.x screen_size /. 2.)  (Vector2.y screen_size /. 2.) ) (Vector2.create (Rectangle.x player.body) (Rectangle.y player.body)) 0.0 3.0
@@ -130,7 +138,7 @@ let draw_player player_state player_texture player =
       | Move -> Rectangle.create (sprite_size *. (1. +. count)) 0. sprite_size sprite_size
       | Shoot -> Rectangle.create (sprite_size *. (4. +. count)) 0. sprite_size sprite_size
     )
-    (Vector2.create (Rectangle.x player.body -. sprite_size /. 4.) (Rectangle.y player.body))
+    (Vector2.create (Rectangle.x player.body -. sprite_size /. 4.) (Rectangle.y player.body -. sprite_size *. 0.4))
     Color.white
 
 let setup =
@@ -165,7 +173,9 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
     in
 
     let enemies = List.map (
-      fun enemy -> if check_collision_recs player_move.body enemy.body then exit 0 else enemy_move enemy player
+      fun enemy ->
+      let (enemy_move, _, _, _) = enemy_move enemy player in
+      if check_collision_recs player_move.body enemy.body then exit 0 else enemy_move
     ) enemies in
 
     let new_bullets = ref bullets in (*think of a way without mutability*)
@@ -215,7 +225,18 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
   begin_drawing ();
   begin_mode_2d cam;
   clear_background Color.skyblue; (*draw background*)
-  List.iter (fun enemy -> draw_rectangle_rec enemy.body enemy.color) enemies;
+  List.iter (fun enemy ->
+    let (_, enemy_state, facing_x, facing_y) = enemy_move enemy player in
+    draw_rectangle_rec enemy.body enemy.color;
+    draw_player enemy_state (
+      match (facing_x, facing_y) with
+      | (Right, Front) -> player_texture_front_right
+      | (Right, Back) -> player_texture_back_right
+      | (Left, Front) -> player_texture_front_left
+      | (Left, Back) -> player_texture_back_left
+    ) enemy;
+  ) enemies;
+  draw_rectangle_rec player.body player.color;
   draw_player player_state (
     match (facing_x, facing_y) with
     | (Right, Front) -> player_texture_front_right
