@@ -23,18 +23,20 @@ type bullet = {
 type player = {
   body : Rectangle.t;
   color : Color.t;
+  count : int;
 }
 
 let player = {
   body = Rectangle.create (Vector2.x screen_size /. 2.) (Vector2.y screen_size /. 2.)  (sprite_size /. 2.) sprite_size;
   color = Color.black;
+  count = 0;
 }
 
 let create_enemies max_x max_y n =
   List.init n (fun _ ->
     let x = Random.float max_x in
     let y = Random.float max_y in
-    {body = (Rectangle.create x y sprite_size sprite_size); color = Color.red;})
+    {body = (Rectangle.create x y sprite_size sprite_size); color = Color.red; count = 0;})
 
 let create_bullet (bullets : bullet list) target player =
   let magnitude dx dy = (sqrt (dx *. dx +. dy *. dy)) in
@@ -69,7 +71,15 @@ let player_move player s =
     else px
   in
 
-  ({ body = player_move_x |> player_move_y; color = player.color;}, !facing, if player.body == player_move_y player_move_x then false else true)
+  (
+    {
+      body = player_move_x |> player_move_y;
+      color = player.color;
+      count = begin if player.body == player_move_y player_move_x || player.count >= 3 * 8 then 0 else player.count + 1 end;
+    },
+    !facing,
+    begin if player.body == player_move_y player_move_x then false else true end
+  )
 
 let lerp a b s =
   let distance = abs_float (a -. b) in
@@ -86,6 +96,7 @@ let bullet_move (bullet : bullet) : bullet = {
 let enemy_move enemy player = {
     body = Rectangle.create (lerp (Rectangle.x enemy.body) (Rectangle.x player.body) 1.) (lerp (Rectangle.y enemy.body) (Rectangle.y player.body) 1.) (Rectangle.width enemy.body) (Rectangle.height enemy.body);
     color = enemy.color;
+    count = 0;
   }
 
 let cam_update player =
@@ -98,7 +109,8 @@ let mouse_pos cam =
       (get_mouse_y () |> float_of_int))
     cam
 
-let draw_player player_state player_texture player count =
+let draw_player player_state player_texture player =
+  let count = player.count / 8 |> float_of_int in
   draw_texture_rec
     player_texture
     ( match player_state with
@@ -128,6 +140,8 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
     let cam = cam_update player in
 
     let (player_move, facing, player_is_moving) = player_move player player_speed in
+
+    let player_state = if player_is_moving then Move else Idle in
 
     let player_speed =
       match player_is_moving with
@@ -180,19 +194,19 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
   let bullets = List.map (fun bullet -> bullet_move bullet) bullets in
 
   let player = if sqrt distance < 100.0
-    then { body = player.body; color = Color.magenta; }
-    else { body = player.body; color = Color.black; }
+    then { body = player.body; color = Color.magenta; count = player.count;}
+    else { body = player.body; color = Color.black; count = player.count;}
   in
 
   begin_drawing ();
   begin_mode_2d cam;
   clear_background Color.skyblue; (*draw background*)
   List.iter (fun enemy -> draw_rectangle_rec enemy.body enemy.color) enemies;
-  draw_player Idle (
+  draw_player player_state (
     match facing with
     | Right -> player_texture_right
     | Left -> player_texture_left
-  ) player 0.; (*player player*)
+  ) player; (*player player*)
   List.iter (fun (bullet : bullet) -> draw_rectangle_rec bullet.body bullet.color) bullets;
   end_drawing ();
   loop player enemies bullets player_speed player_texture_right player_texture_left ()
