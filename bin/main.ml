@@ -132,14 +132,20 @@ let mouse_pos cam = get_screen_to_world_2d
       (get_mouse_y () |> float_of_int))
     cam
 
-let draw_player player_state player_texture player =
+let draw_player player_state player_texture facing_x facing_y player =
   let count = player.count / 6 |> float_of_int in
+  let y = match (facing_x, facing_y) with
+  | (Right, Front) -> 0.
+  | (Right, Back) -> 64.
+  | (Left, Front) -> 32.
+  | (Left, Back) -> 96.
+  in
   draw_texture_rec
     player_texture
     ( match player_state with
-      | Idle -> Rectangle.create 0. 0. sprite_size sprite_size
-      | Move -> Rectangle.create (sprite_size *. (1. +. count)) 0. sprite_size sprite_size
-      | Shoot -> Rectangle.create (sprite_size *. (4. +. count)) 0. sprite_size sprite_size
+      | Idle -> Rectangle.create 0. y sprite_size sprite_size
+      | Move -> Rectangle.create (sprite_size *. (1. +. count)) y sprite_size sprite_size
+      | Shoot -> Rectangle.create (sprite_size *. (4. +. count)) y sprite_size sprite_size
     )
     (Vector2.create (Rectangle.x player.body -. sprite_size /. 4.) (Rectangle.y player.body -. sprite_size *. 0.4))
     Color.white
@@ -149,18 +155,15 @@ let setup =
   set_target_fps 60;
   Random.self_init ();
   disable_cursor ();
-  let player_texture_front_right = load_texture "public/persona-front-right.png" in
-  let player_texture_front_left = load_texture "public/persona-front-left.png" in
-  let player_texture_back_right = load_texture "public/persona-back-right.png" in
-  let player_texture_back_left = load_texture "public/persona-back-left.png" in
   let cursor_texture = load_texture "public/shoot_cursor.png" in
-  (player_texture_front_right, player_texture_front_left, player_texture_back_right, player_texture_back_left, cursor_texture)
+  let player_texture = load_texture "public/persona.png" in
+  (player_texture, cursor_texture)
 
 let enemies = create_enemies 5
 
 let (bullets : bullet list) = []
 
-let rec loop player enemies (bullets : bullet list) player_speed player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left cursor_texture is_shooting facing_x facing_y enemies_timer () =
+let rec loop player enemies (bullets : bullet list) player_speed player_texture cursor_texture is_shooting facing_x facing_y enemies_timer () =
   if window_should_close () then begin
       close_window ()
     end
@@ -258,45 +261,28 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
   let enemies = List.sort (
     fun enemy1 enemy2 -> compare (Rectangle.y enemy1.body) (Rectangle.y enemy2.body)
   ) enemies in
+
   List.iter (fun enemy ->
     let distance_y = (Rectangle.y enemy.body) -. (Rectangle.y player.body) in
 
     if distance_y < 0. then
     let (_, enemy_state, facing_x, facing_y) = enemy_move enemy player in
-    draw_player enemy_state (
-      match (facing_x, facing_y) with
-      | (Right, Front) -> player_texture_front_right
-      | (Right, Back) -> player_texture_back_right
-      | (Left, Front) -> player_texture_front_left
-      | (Left, Back) -> player_texture_back_left
-    ) enemy;
+    draw_player enemy_state player_texture facing_x facing_y enemy;
   ) enemies;
-  draw_player player_state (
-    match (facing_x, facing_y) with
-    | (Right, Front) -> player_texture_front_right
-    | (Right, Back) -> player_texture_back_right
-    | (Left, Front) -> player_texture_front_left
-    | (Left, Back) -> player_texture_back_left
-  ) player; (*player player*)
+  draw_player player_state player_texture facing_x facing_y player; (*player player*)
   List.iter (fun enemy ->
     let distance_y = (Rectangle.y enemy.body) -. (Rectangle.y player.body) in
 
     if distance_y >= 0. then
     let (_, enemy_state, facing_x, facing_y) = enemy_move enemy player in
-    draw_player enemy_state (
-      match (facing_x, facing_y) with
-      | (Right, Front) -> player_texture_front_right
-      | (Right, Back) -> player_texture_back_right
-      | (Left, Front) -> player_texture_front_left
-      | (Left, Back) -> player_texture_back_left
-    ) enemy;
+    draw_player enemy_state player_texture facing_x facing_y enemy;
   ) enemies;
   List.iter (fun (bullet : bullet) -> draw_rectangle_rec bullet.body bullet.color) bullets;
   draw_texture_rec cursor_texture (Rectangle.create 0. 0. 8. 8.) (mouse_pos) Color.white;
   end_drawing ();
-  loop player enemies bullets player_speed player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left cursor_texture is_shooting facing_x facing_y enemies_timer ()
+  loop player enemies bullets player_speed player_texture cursor_texture is_shooting facing_x facing_y enemies_timer ()
 end
 
 let () =
-  let (player_texture_front_right, player_texture_front_left, player_texture_back_right, player_texture_back_left, cursor_texture) = setup in
-  loop player enemies bullets 0.0 player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left cursor_texture false Right Front 0 ()
+  let (player_texture, cursor_texture) = setup in
+  loop player enemies bullets 0.0 player_texture cursor_texture false Right Front 0 ()
