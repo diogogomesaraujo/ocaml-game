@@ -36,11 +36,11 @@ let player = {
   count = 0;
 }
 
-let create_enemies max_x max_y min_x min_y n =
+let create_enemies n =
   let random_float min max = min +. Random.float (max -. min) in
   List.init n (fun _ ->
-    let x = random_float min_x max_x in
-    let y = random_float min_y max_y in
+    let x = random_float 0. (Vector2.x screen_size) in
+    let y = random_float 0. (Vector2.y screen_size) in
     {body = (Rectangle.create x y (sprite_size /. 2.) (sprite_size *. 0.6)); color = Color.red; count = 0;})
 
 let create_bullet (bullets : bullet list) target player =
@@ -88,7 +88,7 @@ let player_move player s facing_x facing_y =
     {
       body = player_move_x |> player_move_y;
       color = player.color;
-      count = begin if player.body == player_move_y player_move_x || player.count >= 3 * 8 then 0 else player.count + 1 end;
+      count = begin if player.body == player_move_y player_move_x || player.count >= 3 * 6 then 0 else player.count + 1 end;
     },
     !facing_x,
     !facing_y,
@@ -101,20 +101,22 @@ let lerp a b s =
   else if a < b then a +. s
   else a -. s
 
+let smoothing a b s = a +. (b -. a) *. s
+
 let bullet_move (bullet : bullet) : bullet = {
-  body = Rectangle.create (Rectangle.x bullet.body +. (Vector2.x bullet.direction *. 5.0)) (Rectangle.y bullet.body +. (Vector2.y bullet.direction *. 5.0)) 2.0 2.0;
+  body = Rectangle.create (Rectangle.x bullet.body +. (Vector2.x bullet.direction *. 5.0)) (Rectangle.y bullet.body +. (Vector2.y bullet.direction *. 5.0)) 1.5 1.5;
   color = bullet.color;
   direction = bullet.direction;
 }
 
 let enemy_move enemy player =
-  let x = (lerp (Rectangle.x enemy.body) (Rectangle.x player.body) 0.75) in
-  let y = (lerp (Rectangle.y enemy.body) (Rectangle.y player.body) 0.75) in
+  let x = smoothing (lerp (Rectangle.x enemy.body) (Rectangle.x player.body) 0.75) (Rectangle.x enemy.body) 0.2 in
+  let y = smoothing (lerp (Rectangle.y enemy.body) (Rectangle.y player.body) 0.75) (Rectangle.y enemy.body) 0.2 in
   (
   {
     body = Rectangle.create x y (Rectangle.width enemy.body) (Rectangle.height enemy.body);
     color = enemy.color;
-    count =   begin if x == Rectangle.x enemy.body || y == Rectangle.y enemy.body || enemy.count <= 3 * 8 then enemy.count + 1 else 0 end;
+    count =   begin if x == Rectangle.x enemy.body || y == Rectangle.y enemy.body || enemy.count <= 3 * 6 then enemy.count + 1 else 0 end;
   },
   begin if x == Rectangle.x enemy.body || y == Rectangle.y enemy.body then Idle else Move end,
   begin if (Rectangle.x enemy.body) -. x > 0. then Left else Right end,
@@ -122,7 +124,7 @@ let enemy_move enemy player =
   )
 
 let cam_update player =
-  Camera2D.create (Vector2.create (Vector2.x screen_size /. 2.)  (Vector2.y screen_size /. 2.) ) (Vector2.create (Rectangle.x player.body) (Rectangle.y player.body)) 0.0 3.0
+  Camera2D.create (Vector2.create (Vector2.x screen_size /. 2.)  (Vector2.y screen_size /. 2.)) (Vector2.create (Rectangle.x player.body) (Rectangle.y player.body)) 0.0 3.0
 
 let mouse_pos cam = get_screen_to_world_2d
     (Vector2.create
@@ -131,7 +133,7 @@ let mouse_pos cam = get_screen_to_world_2d
     cam
 
 let draw_player player_state player_texture player =
-  let count = player.count / 8 |> float_of_int in
+  let count = player.count / 6 |> float_of_int in
   draw_texture_rec
     player_texture
     ( match player_state with
@@ -154,19 +156,25 @@ let setup =
   let cursor_texture = load_texture "public/shoot_cursor.png" in
   (player_texture_front_right, player_texture_front_left, player_texture_back_right, player_texture_back_left, cursor_texture)
 
-let enemies = create_enemies (Vector2.x screen_size) (Vector2.y screen_size) (Vector2.x screen_size /. 2. -. 5.) (Vector2.y screen_size /. 2. -. 5.) 15
+let enemies = create_enemies 5
 
 let (bullets : bullet list) = []
 
-let rec loop player enemies (bullets : bullet list) player_speed player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left cursor_texture is_shooting facing_x facing_y () =
-  if window_should_close () then close_window ()
+let rec loop player enemies (bullets : bullet list) player_speed player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left cursor_texture is_shooting facing_x facing_y enemies_timer () =
+  if window_should_close () then begin
+      close_window ()
+    end
   else begin
     if List.length enemies == 0 then exit 0;
+
+    let enemies_timer = enemies_timer + 1 in
+    let enemies = if enemies_timer mod 60 == 0 && List.length enemies <= 50 then enemies @ create_enemies 1 else enemies in
+
     let cam = cam_update player in
 
     let (player_move, facing_x, facing_y, player_is_moving) = player_move player player_speed facing_x facing_y in
 
-    let (player_move, is_shooting) = if is_shooting && player.count <= 8 * 4 then ({body = player.body; color = player.color; count = player.count + 1;}, true) else ({body = player_move.body; color = player_move.color; count = player_move.count}, false) in
+    let (player_move, is_shooting) = if is_shooting && player.count <= 6 * 4 then ({body = player.body; color = player.color; count = player.count + 1;}, true) else ({body = player_move.body; color = player_move.color; count = player_move.count}, false) in
 
     let player_state = match (player_is_moving, is_shooting) with
       | (true, false) -> Move
@@ -223,7 +231,7 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
   let mouse_pos = mouse_pos cam in
 
   let (facing_x, facing_y) =
-    if is_shooting then
+    if is_shooting || player_is_moving == false then
     begin
       let screen_x = Vector2.x screen_size |> int_of_float in
       let screen_y = Vector2.x screen_size |> int_of_float in
@@ -235,7 +243,7 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
     end else (facing_x, facing_y)
   in
 
-  let (bullets, player, is_shooting) = if is_key_pressed Key.Space then (create_bullet bullets mouse_pos player, {body = player.body; color = player.color; count = 0}, true) else (bullets, player, is_shooting) in
+  let (bullets, player, is_shooting) = if is_mouse_button_pressed MouseButton.Left || is_key_pressed Key.Space then (create_bullet bullets mouse_pos player, {body = player.body; color = player.color; count = 0}, true) else (bullets, player, is_shooting) in
 
   let bullets = List.map (fun bullet -> bullet_move bullet) bullets in
 
@@ -286,9 +294,9 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
   List.iter (fun (bullet : bullet) -> draw_rectangle_rec bullet.body bullet.color) bullets;
   draw_texture_rec cursor_texture (Rectangle.create 0. 0. 8. 8.) (mouse_pos) Color.white;
   end_drawing ();
-  loop player enemies bullets player_speed player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left cursor_texture is_shooting facing_x facing_y ()
+  loop player enemies bullets player_speed player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left cursor_texture is_shooting facing_x facing_y enemies_timer ()
 end
 
 let () =
   let (player_texture_front_right, player_texture_front_left, player_texture_back_right, player_texture_back_left, cursor_texture) = setup in
-  loop player enemies bullets 0.0 player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left cursor_texture false Right Front ()
+  loop player enemies bullets 0.0 player_texture_front_right player_texture_front_left player_texture_back_right player_texture_back_left cursor_texture false Right Front 0 ()
