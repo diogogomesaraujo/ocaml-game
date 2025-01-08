@@ -102,14 +102,14 @@ let lerp a b s =
   else a -. s
 
 let bullet_move (bullet : bullet) : bullet = {
-  body = Rectangle.create (Rectangle.x bullet.body +. (Vector2.x bullet.direction *. 10.0)) (Rectangle.y bullet.body +. (Vector2.y bullet.direction *. 10.0)) 2.0 2.0;
+  body = Rectangle.create (Rectangle.x bullet.body +. (Vector2.x bullet.direction *. 5.0)) (Rectangle.y bullet.body +. (Vector2.y bullet.direction *. 5.0)) 2.0 2.0;
   color = bullet.color;
   direction = bullet.direction;
 }
 
 let enemy_move enemy player =
-  let x = (lerp (Rectangle.x enemy.body) (Rectangle.x player.body) 1.) in
-  let y = (lerp (Rectangle.y enemy.body) (Rectangle.y player.body) 1.) in
+  let x = (lerp (Rectangle.x enemy.body) (Rectangle.x player.body) 0.75) in
+  let y = (lerp (Rectangle.y enemy.body) (Rectangle.y player.body) 0.75) in
   (
   {
     body = Rectangle.create x y (Rectangle.width enemy.body) (Rectangle.height enemy.body);
@@ -118,14 +118,13 @@ let enemy_move enemy player =
   },
   begin if x == Rectangle.x enemy.body || y == Rectangle.y enemy.body then Idle else Move end,
   begin if (Rectangle.x enemy.body) -. x > 0. then Left else Right end,
-  begin if (Rectangle.y enemy.body) -. y > 0. then Front else Back end
+  begin if (Rectangle.y enemy.body) -. y < 0. then Front else Back end
   )
 
 let cam_update player =
   Camera2D.create (Vector2.create (Vector2.x screen_size /. 2.)  (Vector2.y screen_size /. 2.) ) (Vector2.create (Rectangle.x player.body) (Rectangle.y player.body)) 0.0 3.0
 
-let mouse_pos cam =
-  get_screen_to_world_2d
+let mouse_pos cam = get_screen_to_world_2d
     (Vector2.create
       (get_mouse_x () |> float_of_int)
       (get_mouse_y () |> float_of_int))
@@ -222,6 +221,19 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture_
   ) max_float enemies in
 
   let mouse_pos = mouse_pos cam in
+
+  let (facing_x, facing_y) =
+    if is_shooting then
+    begin
+      let screen_x = Vector2.x screen_size |> int_of_float in
+      let screen_y = Vector2.x screen_size |> int_of_float in
+      match (get_mouse_x (), get_mouse_y ()) with
+        | (x, y) when x > screen_x / 2  && y < screen_y / 2 -> (Right, Back)
+        | (x, y) when x > screen_x / 2  && y > screen_y / 2 -> (Right, Front)
+        | (x, y) when x < screen_x / 2  && y < screen_y / 2 -> (Left, Back)
+        | (_, _) -> (Left, Front)
+    end else (facing_x, facing_y)
+  in
 
   let (bullets, player, is_shooting) = if is_key_pressed Key.Space then (create_bullet bullets mouse_pos player, {body = player.body; color = player.color; count = 0}, true) else (bullets, player, is_shooting) in
 
