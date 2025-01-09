@@ -163,15 +163,27 @@ let enemies = create_enemies 5
 
 let (bullets : bullet list) = []
 
+let rec game_over () =
+  enable_cursor ();
+  if window_should_close () || is_key_down Key.Escape then exit 0;
+  begin_drawing ();
+  clear_background Color.black;
+  let text_size = measure_text_ex (get_font_default ()) "Hi Elliot." 100. 10. in
+  let x = (int_of_float (Vector2.x screen_size)) / 2 - ((Vector2.x text_size |> int_of_float) / 2) in
+  let y = (int_of_float (Vector2.y screen_size)) / 2 - ((Vector2.y text_size |> int_of_float) / 2) in
+  draw_text "Hi Elliot." x y 100 Color.white;
+  end_drawing ();
+  game_over ()
+
 let rec loop player enemies (bullets : bullet list) player_speed player_texture cursor_texture is_shooting facing_x facing_y enemies_timer () =
   if window_should_close () then begin
-      close_window ()
+      exit 0
     end
   else begin
-    if List.length enemies == 0 then exit 0;
-
+    (*if List.length enemies == 0 then game_over ();*)
     let enemies_timer = enemies_timer + 1 in
-    let enemies = if enemies_timer mod 60 == 0 && List.length enemies <= 50 then enemies @ create_enemies 1 else enemies in
+
+    let enemies = if enemies_timer mod 12 == 0 && List.length enemies <= 50 then enemies @ create_enemies 1 else enemies in
 
     let cam = cam_update player in
 
@@ -195,7 +207,7 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture 
     let enemies = List.map (
       fun enemy ->
       let (enemy_move, _, _, _) = enemy_move enemy player in
-      if check_collision_recs player_move.body enemy.body then exit 0 else enemy_move
+      if check_collision_recs player_move.body enemy.body then game_over () else enemy_move
     ) enemies in
 
     let new_enemies = ref enemies in (*think of a way without mutability*)
@@ -222,7 +234,7 @@ let rec loop player enemies (bullets : bullet list) player_speed player_texture 
       let player = player_move in
       if List.exists (
       fun enemy -> check_collision_recs player_move.body enemy.body
-    ) enemies then exit 0 else player
+    ) enemies then game_over () else player
     in
 
   let distance = List.fold_left (
