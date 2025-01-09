@@ -151,7 +151,8 @@ let draw_player player_state player_texture facing_x facing_y player =
     Color.white
 
 let setup =
-  init_window (Vector2.x screen_size |> int_of_float)  (Vector2.y screen_size |> int_of_float)  "game";
+  init_window (Vector2.x screen_size |> int_of_float)  (Vector2.y screen_size |> int_of_float) "Where Is My Mind?";
+  set_window_icon (load_image "public/icon.png");
   set_target_fps 60;
   Random.self_init ();
   disable_cursor ();
