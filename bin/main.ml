@@ -53,7 +53,7 @@ let create_enemies n =
       body = (
       Rectangle.create x y
         (sprite_size /. 2.)
-        (sprite_size *. 0.6)
+        (sprite_size *. 0.9)
       );
       color = Color.red;
       count = 0;
@@ -265,7 +265,7 @@ let draw_player player_state player_texture facing_x facing_y player =
     (
       Vector2.create
       (Rectangle.x player.body -. sprite_size /. 4.)
-      (Rectangle.y player.body -. sprite_size *. 0.4)
+      (Rectangle.height player.body -. (sprite_size -. Rectangle.y player.body) +. 0.8)
     )
     Color.white
 
