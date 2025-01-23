@@ -275,6 +275,7 @@ let setup =
     (Vector2.y screen_size |> int_of_float)
     "Where Is My Mind?"
   ;
+  init_audio_device ();
   set_window_icon (load_image "public/icon.png");
   set_target_fps 60;
   Random.self_init ();
@@ -419,7 +420,7 @@ let rec loop player enemies (bullets : bullet list) player_speed
     if is_shooting || player_is_moving == false then
     begin
       let screen_x = Vector2.x screen_size |> int_of_float in
-      let screen_y = Vector2.x screen_size |> int_of_float in
+      let screen_y = Vector2.y screen_size |> int_of_float in
       match (get_mouse_x (), get_mouse_y ()) with
         | (x, y) when x > screen_x / 2  && y < screen_y / 2 -> (Right, Back)
         | (x, y) when x > screen_x / 2  && y > screen_y / 2 -> (Right, Front)
