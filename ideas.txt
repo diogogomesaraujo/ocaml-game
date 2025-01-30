@@ -1,3 +1,0 @@
-name: where is my mind
-
-description: a game where you have to kill your other selves to prevale

@@ -5,22 +5,20 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github diogogomesaraujo/ocaml-game))
 
-(authors "Author Name")
+(authors "Diogo Araújo")
 
-(maintainers "Maintainer Name")
+(maintainers "Diogo Araújo")
 
 (license LICENSE)
 
-(documentation https://url/to/documentation)
-
 (package
  (name game)
- (synopsis "A short synopsis")
- (description "A longer description")
+ (synopsis "A Game in OCaml using Raylib")
+ (description "A 2D shooter game inspired by a project by TJ Devries")
  (depends ocaml dune raylib)
  (tags
-  (topics "to describe" your project)))
+  (topics "game" your project)))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project

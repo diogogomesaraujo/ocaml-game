@@ -1,35 +1,59 @@
-[@@@warning "-37-32"]
+(** Implementation of the game. *)
+
 open Raylib
 
 let sprite_size = 32.
 let screen_size = Vector2.create 800. 600.
 
+(** Represents the current state of the player.
+  @param Idle
+  @param Move
+  @param Shoot
+*)
 type player_state =
   | Idle
   | Move
   | Shoot
 
+(** Represents the side the player is currently facing in the X axis.
+  @param Right
+  @param Left
+*)
 type player_x_side =
   | Right
   | Left
 
+(** Represents the side the player is currently facing in the Y axis.
+  @param Right
+  @param Left
+*)
 type player_y_side =
   | Front
   | Back
 
+(** Bullet
+  @param body Where the bullet is drawn as well as the hitbox.
+  @param color Color of the bullet.
+  @param direction Direction of the bullet's movement.
+*)
 type bullet = {
   body : Rectangle.t;
   color : Color.t;
   direction : Vector2.t;
-  (*lifespan : int;*)
 }
 
+(** Player
+  @param body Where the player is drawn as well as the hitbox.
+  @param color Color of the player.
+  @param count For player animation.
+*)
 type player = {
   body : Rectangle.t;
   color : Color.t;
   count : int;
 }
 
+(** Initializing the player*)
 let player = {
   body = Rectangle.create
     (Vector2.x screen_size /. 2.)
@@ -40,6 +64,11 @@ let player = {
   count = 0;
 }
 
+(** Create enemies.
+  @param n Number of enemies.
+
+  @return List of enemies.
+*)
 let create_enemies n =
   let random_float min max =
     min +. Random.float
@@ -60,6 +89,13 @@ let create_enemies n =
     }
   )
 
+(** Create bullet.
+  @param bullets List of bullets.
+  @param target Point to shoot at.
+  @param player Player that shot the bullet.
+
+  @return List of bullets updated.
+*)
 let create_bullet (bullets : bullet list) target player =
   let magnitude dx dy =
     (sqrt (dx *. dx +. dy *. dy))
@@ -86,6 +122,14 @@ let create_bullet (bullets : bullet list) target player =
       (Vector2.y target -. Rectangle.y player.body);
   } :: bullets
 
+(** Move player.
+  @param player Player to move.
+  @param s Speed with which the player is moved.
+  @param facing_x Side the player is facing in the X axis.
+  @param facing_y Side the player is facing in the Y axis.
+
+  @return Player with the updated position.
+*)
 let player_move player s facing_x facing_y =
   let facing_x = ref facing_x in
   let facing_y = ref facing_y in
@@ -155,14 +199,33 @@ let player_move player s facing_x facing_y =
     end
   )
 
+(** Linear Interpolation.
+  @param a Beginning position.
+  @param b Target position.
+  @param s Step.
+
+  @return Updated position.
+*)
 let lerp a b s =
   let distance = abs_float (a -. b) in
   if distance < s then b
   else if a < b then a +. s
   else a -. s
 
+(** Smoothing the movement.
+  @param a Beginning position.
+  @param b Target position.
+  @param s Step.
+
+  @return Updated position.
+*)
 let smoothing a b s = a +. (b -. a) *. s
 
+(** Move bullet.
+  @param bullet Bullet to move.
+
+  @return Bullet with the updated position.
+*)
 let bullet_move (bullet : bullet) : bullet = {
   body = Rectangle.create
     (Rectangle.x bullet.body +. (Vector2.x bullet.direction *. 5.0))
@@ -173,6 +236,12 @@ let bullet_move (bullet : bullet) : bullet = {
   direction = bullet.direction;
 }
 
+(** Move enemy.
+  @param enemy Enemy to move.
+  @param player Player to move towards.
+
+  @return Enemy with the updated position.
+*)
 let enemy_move enemy player =
   let x = smoothing
     (lerp (Rectangle.x enemy.body)
@@ -220,6 +289,11 @@ let enemy_move enemy player =
   end
   )
 
+(** Update camera position.
+  @param player Player to follow.
+
+  @return Camera with the updated position.
+*)
 let cam_update player =
   Camera2D.create
     (Vector2.create (Vector2.x screen_size /. 2.)  (Vector2.y screen_size /. 2.))
@@ -227,6 +301,11 @@ let cam_update player =
     0.0
     3.0
 
+(** Get mouse position on screen.
+  @param cam Camera to get screen position.
+
+  @return Screen position of the mouse
+*)
 let mouse_pos cam = get_screen_to_world_2d
     (
       Vector2.create
@@ -235,6 +314,13 @@ let mouse_pos cam = get_screen_to_world_2d
     )
     cam
 
+(** Draw player.
+  @param player_state State the player is currently in for animation.
+  @param player_texture Texture to render the player with (Holding all the sprites).
+  @param facing_x Side the player is facing in the X axis.
+  @param facing_y Side the player is facing in the Y axis.
+  @param player Player to draw.
+*)
 let draw_player player_state player_texture facing_x facing_y player =
   let count = player.count / 6 |> float_of_int in
   let y = match (facing_x, facing_y) with
@@ -269,6 +355,7 @@ let draw_player player_state player_texture facing_x facing_y player =
     )
     Color.white
 
+(** Setup the window. *)
 let setup =
   init_window
     (Vector2.x screen_size |> int_of_float)
@@ -288,6 +375,7 @@ let enemies = create_enemies 5
 
 let (bullets : bullet list) = []
 
+(** Game over screen. *)
 let rec game_over () =
   enable_cursor ();
 
@@ -309,6 +397,7 @@ let rec game_over () =
 
   game_over ()
 
+(** Render loop *)
 let rec loop player enemies (bullets : bullet list) player_speed
   player_texture cursor_texture is_shooting facing_x facing_y enemies_timer () =
   if window_should_close ()
@@ -511,6 +600,7 @@ let rec loop player enemies (bullets : bullet list) player_speed
     cursor_texture is_shooting facing_x facing_y enemies_timer ()
 end
 
+(** Main function of the application. *)
 let () =
   let (player_texture, cursor_texture) = setup in
   loop player enemies bullets 0.0 player_texture
